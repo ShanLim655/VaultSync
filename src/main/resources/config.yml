@@ -1,0 +1,20 @@
+database:
+  host: 127.0.0.1
+  port: 3306
+  name: minecraft
+  username: vaultsync
+  password: change-me
+  use-ssl: false
+  require-ssl: true
+  allow-public-key-retrieval: false
+  pool:
+    maximum-size: 10
+    minimum-idle: 2
+    connection-timeout-ms: 10000
+    max-lifetime-ms: 1800000
+saving:
+  autosave-interval-seconds: 300
+  restore-on-join: true
+  save-on-quit: true
+  save-on-shutdown: true
+  shutdown-timeout-seconds: 30
