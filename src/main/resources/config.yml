@@ -1,20 +1,63 @@
+# VaultSync 1.0.0 configuration
+# VaultSync will only finish enabling after it can connect to this database,
+# validate the connection, and create/update its required tables.
+# If the database is unavailable or these settings are incorrect, VaultSync
+# will log the error and disable itself. Fix the settings and restart the server.
+
 database:
+  # Database server address. Use 127.0.0.1 only when MySQL/MariaDB is on this same machine.
+  # For a hosted database, enter the hostname provided by your database host.
   host: 127.0.0.1
+
+  # MySQL/MariaDB TCP port (commonly 3306).
   port: 3306
+
+  # An existing database/schema that the configured user can access.
+  # Create it in your database host's panel before starting VaultSync.
   name: minecraft
+
+  # Database user with permission to create tables and read/write VaultSync data.
   username: vaultsync
+
+  # Replace this example with your database user's actual password.
   password: change-me
+
+  # Set true when your database provider requires encrypted TLS connections.
   use-ssl: false
+
+  # When TLS is enabled, require SSL certificate validation/SSL connection.
+  # Keep true unless your database provider specifically instructs otherwise.
   require-ssl: true
+
+  # Enable only if your provider requires MySQL public-key retrieval for authentication.
+  # Do not change this unless your provider's connection instructions require it.
   allow-public-key-retrieval: false
+
   pool:
+    # Maximum number of simultaneous database connections used by VaultSync.
     maximum-size: 10
+
+    # Number of idle connections HikariCP attempts to keep ready.
     minimum-idle: 2
+
+    # Time in milliseconds to wait for a connection before failing.
     connection-timeout-ms: 10000
+
+    # Maximum lifetime of a pooled connection in milliseconds.
     max-lifetime-ms: 1800000
+
 saving:
+  # How often online player data is saved, in seconds. Minimum effective interval is 30 seconds.
   autosave-interval-seconds: 300
+
+  # Restore the player's last VaultSync snapshot when they join this server.
   restore-on-join: true
+
+  # Save a player's current data when they disconnect.
   save-on-quit: true
+
+  # Save all online players during a normal server/plugin shutdown.
   save-on-shutdown: true
+
+  # Maximum time VaultSync waits for queued database operations to finish during shutdown.
   shutdown-timeout-seconds: 30

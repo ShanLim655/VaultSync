@@ -89,6 +89,7 @@ public final class VaultSync extends JavaPlugin implements Listener, org.bukkit.
             config.setMaxLifetime(Math.max(60000, getConfig().getLong("database.pool.max-lifetime-ms", 1800000)));
             config.setInitializationFailTimeout(10000);
             pool = new HikariDataSource(config);
+            validateDatabaseConnection();
             migrate();
             getServer().getPluginManager().registerEvents(this, this);
             if (getCommand("vaultsync") != null) getCommand("vaultsync").setExecutor(this);
@@ -96,8 +97,26 @@ public final class VaultSync extends JavaPlugin implements Listener, org.bukkit.
             Bukkit.getScheduler().runTaskTimer(this, this::saveAll, interval * 20L, interval * 20L);
             getLogger().info("VaultSync connected to the database and initialized schema version " + SNAPSHOT_VERSION + ".");
         } catch (Exception exception) {
-            getLogger().log(Level.SEVERE, "VaultSync initialization failed.", exception);
+            getLogger().log(Level.SEVERE, "VaultSync is disabling itself because the database could not be validated or initialized. Check config.yml and database availability.", exception);
+            if (pool != null) {
+                pool.close();
+                pool = null;
+            }
+            if (workers != null) {
+                workers.shutdownNow();
+                workers = null;
+            }
             getServer().getPluginManager().disablePlugin(this);
+        }
+    }
+
+    private void validateDatabaseConnection() throws Exception {
+        try (Connection connection = pool.getConnection();
+             Statement statement = connection.createStatement();
+             ResultSet result = statement.executeQuery("SELECT 1")) {
+            if (!result.next() || result.getInt(1) != 1) {
+                throw new IllegalStateException("Database validation query did not return 1.");
+            }
         }
     }
 
