@@ -119,7 +119,6 @@ public final class VaultSync extends JavaPlugin implements Listener, org.bukkit.
             }
         }
     }
-    }
 
     private void migrate() throws Exception {
         try (Connection connection = pool.getConnection(); Statement statement = connection.createStatement()) {
