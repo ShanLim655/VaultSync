@@ -20,4 +20,4 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: VaultSync
-          path: target/VaultSync-1.0.0.jar
+          path: target/VaultSync-2.0.0.jar
