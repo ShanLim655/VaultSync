@@ -1,5 +1,5 @@
 name: VaultSync
-version: 1.0.0
+version: 2.0.0
 main: dev.vaultsync.VaultSync
 api-version: '1.21'
 author: ShanLim655
@@ -7,7 +7,7 @@ description: Reliable MySQL and MariaDB player-data persistence.
 commands:
   vaultsync:
     description: Manage VaultSync player data.
-    usage: /vaultsync <status|save|restore|info|reload>
+    usage: /vaultsync <status|save|restore|info|reload|gui>
     aliases: [vsync, vs]
 permissions:
   vaultsync.admin:
@@ -22,3 +22,6 @@ permissions:
     default: op
   vaultsync.reload:
     default: op
+  vaultsync.gui:
+    default: op
+    description: Open the VaultSync manager GUI when allowlisted in config.yml.
