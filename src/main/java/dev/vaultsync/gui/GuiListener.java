@@ -2,6 +2,7 @@ package dev.vaultsync.gui;
 
 import dev.vaultsync.VaultSync;
 import org.bukkit.Bukkit;
+import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -51,7 +52,7 @@ public final class GuiListener implements Listener {
         }
 
         ItemStack current = event.getCurrentItem();
-        if (current == null || current.getType().isAir()) {
+        if (current == null || current.getType().isAir() || current.getType() == Material.BLACK_STAINED_GLASS_PANE) {
             return;
         }
 

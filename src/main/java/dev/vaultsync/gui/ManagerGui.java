@@ -31,6 +31,7 @@ public final class ManagerGui {
         VaultSyncGuiHolder holder = new VaultSyncGuiHolder(GuiView.PLAYERS, null, null, page);
         Inventory inventory = Bukkit.createInventory(holder, 54, TITLE_PLAYERS);
         holder.setInventory(inventory);
+        fillEmptySlots(inventory);
 
         int start = page * PAGE_SIZE;
         int end = Math.min(start + PAGE_SIZE, online.size());
@@ -61,6 +62,7 @@ public final class ManagerGui {
         VaultSyncGuiHolder holder = new VaultSyncGuiHolder(GuiView.ACTIONS, target.getUniqueId(), target.getName());
         Inventory inventory = Bukkit.createInventory(holder, 27, TITLE_ACTIONS);
         holder.setInventory(inventory);
+        fillEmptySlots(inventory);
 
         inventory.setItem(4, playerHead(target));
         inventory.setItem(11, namedItem(Material.CHEST, "§aSave", "§7Save " + target.getName() + "'s current state."));
@@ -70,10 +72,17 @@ public final class ManagerGui {
         viewer.openInventory(inventory);
     }
 
+    private static void fillEmptySlots(Inventory inventory) {
+        for (int slot = 0; slot < inventory.getSize(); slot++) {
+            inventory.setItem(slot, namedItem(Material.BLACK_STAINED_GLASS_PANE, " "));
+        }
+    }
+
     public void openConfirmRestore(Player viewer, Player target) {
         VaultSyncGuiHolder holder = new VaultSyncGuiHolder(GuiView.CONFIRM_RESTORE, target.getUniqueId(), target.getName());
         Inventory inventory = Bukkit.createInventory(holder, 27, TITLE_CONFIRM);
         holder.setInventory(inventory);
+        fillEmptySlots(inventory);
 
         inventory.setItem(4, playerHead(target));
         inventory.setItem(11, namedItem(Material.LIME_CONCRETE, "§aConfirm Restore",
