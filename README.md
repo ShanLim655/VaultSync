@@ -11,20 +11,23 @@ VaultSync is an open-source Paper plugin that stores vanilla player snapshots in
 
 ## Build
 
-Run `mvn --batch-mode clean verify`. The shaded plugin is generated at `target/VaultSync.jar`.
+Run `mvn --batch-mode clean verify`. The shaded plugin is generated at `target/VaultSync-2.0.0.jar`.
 
 ## Installation
 
 1. Back up your server world and database.
-2. Put `VaultSync.jar` in `plugins/` and start the server once.
+2. Put `VaultSync-2.0.0.jar` in `plugins/` and start the server once.
 3. Stop the server and configure `plugins/VaultSync/config.yml`.
 4. Use a dedicated database account and enable TLS for remote database connections.
-5. Start the server and check the console for the successful database connection message.
-6. Test on a staging server before using it on a production network.
+5. Add manager UUIDs to `allowmanager` before using `/vaultsync gui`.
+6. Start the server and check the console for the successful database connection message.
+7. Test on a staging server before using it on a production network.
 
 ## Configuration
 
 Configure the database endpoint, credentials, TLS, connection pool, autosave interval, join restoration, quit saving, shutdown saving, and shutdown timeout in `config.yml`. Database reads and writes are serialized through a dedicated worker. Bukkit state is captured and applied on the server thread.
+
+`allowmanager` is a list of player UUIDs. Only allowlisted players who also have `vaultsync.gui` or `vaultsync.admin` can open the manager GUI and use its actions. An empty list denies GUI access.
 
 Never expose database credentials or enable public-key retrieval unless your database provider explicitly requires it. For a remote database, enable TLS and use a trusted certificate configuration.
 
@@ -35,8 +38,9 @@ Never expose database credentials or enable public-key retrieval unless your dat
 - `/vaultsync restore <player>` — restore a stored snapshot to an online player or queue it for an offline player to apply on their next join.
 - `/vaultsync info <player>` — inspect an online or offline player's stored snapshot.
 - `/vaultsync reload` — reload configuration values that do not require a database reconnect.
+- `/vaultsync gui` — open the manager GUI to browse online players and run save, info, or confirmed restore actions.
 
-Permissions: `vaultsync.admin`, `vaultsync.status`, `vaultsync.save`, `vaultsync.restore`, `vaultsync.info`, and `vaultsync.reload`. Operators receive these by default.
+Permissions: `vaultsync.admin`, `vaultsync.status`, `vaultsync.save`, `vaultsync.restore`, `vaultsync.info`, `vaultsync.reload`, and `vaultsync.gui`. Operators receive these by default. GUI access additionally requires the player's UUID in `allowmanager`.
 
 ## Persisted state
 
@@ -46,4 +50,4 @@ VaultSync does not copy world chunks, locations, arbitrary plugin-owned data, pe
 
 ## Data safety and compatibility
 
-Failed serialization never replaces the existing database snapshot. Save requests are queued in order and command saves report their actual database result. Offline restore queues an explicit marker and applies the saved database snapshot on the player's next join. Runtime smoke tests on each target Paper version are still required before production use; a passing compile is not a substitute for server testing.
+Failed serialization never replaces the existing database snapshot. Save requests are queued in order and command or GUI saves report their actual database result. Offline restore queues an explicit marker and applies the saved database snapshot on the player's next join. GUI restore requires an explicit confirmation step. Inventory clicks and item movement inside VaultSync GUIs are cancelled and re-authorized on every interaction. Runtime smoke tests on each target Paper version are still required before production use; a passing compile is not a substitute for server testing.

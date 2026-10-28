@@ -2,6 +2,11 @@ package dev.vaultsync;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
+import dev.vaultsync.access.ManagerAccess;
+import dev.vaultsync.command.VaultSyncCommand;
+import dev.vaultsync.data.SaveResult;
+import dev.vaultsync.gui.GuiListener;
+import dev.vaultsync.gui.ManagerGui;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Material;
@@ -9,23 +14,23 @@ import org.bukkit.NamespacedKey;
 import org.bukkit.Statistic;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
+import org.bukkit.command.CommandSender;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
-import org.bukkit.event.player.PlayerJoinEvent;
-import org.bukkit.event.player.PlayerQuitEvent;
-import org.bukkit.event.player.PlayerMoveEvent;
-import org.bukkit.event.player.PlayerSwapHandItemsEvent;
-import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
-import org.bukkit.event.entity.EntityPickupItemEvent;
-import org.bukkit.event.entity.PlayerDeathEvent;
-import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.event.player.PlayerDropItemEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerMoveEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.potion.PotionEffect;
@@ -53,16 +58,20 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 
-public final class VaultSync extends JavaPlugin implements Listener, org.bukkit.command.CommandExecutor {
+public final class VaultSync extends JavaPlugin implements Listener {
     private static final int SNAPSHOT_VERSION = 2;
     private HikariDataSource pool;
     private ExecutorService workers;
     private volatile boolean shuttingDown;
     private final Set<UUID> joiningPlayers = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    private ManagerAccess managerAccess;
+    private ManagerGui managerGui;
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
+        managerAccess = new ManagerAccess(this::getConfig);
+        managerGui = new ManagerGui();
         workers = Executors.newSingleThreadExecutor(task -> {
             Thread thread = new Thread(task, "VaultSync-Database");
             thread.setDaemon(true);
@@ -92,7 +101,10 @@ public final class VaultSync extends JavaPlugin implements Listener, org.bukkit.
             validateDatabaseConnection();
             migrate();
             getServer().getPluginManager().registerEvents(this, this);
-            if (getCommand("vaultsync") != null) getCommand("vaultsync").setExecutor(this);
+            getServer().getPluginManager().registerEvents(new GuiListener(this, managerGui), this);
+            if (getCommand("vaultsync") != null) {
+                getCommand("vaultsync").setExecutor(new VaultSyncCommand(this, managerGui));
+            }
             long interval = Math.max(30, getConfig().getLong("saving.autosave-interval-seconds", 300));
             Bukkit.getScheduler().runTaskTimer(this, this::saveAll, interval * 20L, interval * 20L);
             getLogger().info("VaultSync connected to the database and initialized schema version " + SNAPSHOT_VERSION + ".");
@@ -108,6 +120,48 @@ public final class VaultSync extends JavaPlugin implements Listener, org.bukkit.
             }
             getServer().getPluginManager().disablePlugin(this);
         }
+    }
+
+    public ManagerAccess managerAccess() {
+        return managerAccess;
+    }
+
+    public void reloadVaultSyncConfig() {
+        reloadConfig();
+    }
+
+    public void savePlayer(Player player, CommandSender sender) {
+        save(player, true, sender);
+    }
+
+    public void restorePlayer(Player player, CommandSender sender) {
+        joiningPlayers.add(player.getUniqueId());
+        load(player, true, sender);
+    }
+
+    public void queueOfflineRestore(String name, CommandSender sender) {
+        enqueue(() -> requestOfflineRestore(name, sender));
+    }
+
+    public void queryPlayerInfo(String name, CommandSender sender) {
+        enqueue(() -> queryInfo(name, sender));
+    }
+
+    public void status(CommandSender sender) {
+        int onlineCount = Bukkit.getOnlinePlayers().size();
+        sender.sendMessage("§7Checking database connection...");
+        enqueue(() -> {
+            String message;
+            try (Connection connection = pool.getConnection();
+                 Statement statement = connection.createStatement();
+                 ResultSet result = statement.executeQuery("SELECT 1")) {
+                message = result.next() ? "§6VaultSync §7| Database: §aConnected §7| Online: §f" + onlineCount : "§cDatabase check failed.";
+            } catch (Exception exception) {
+                getLogger().log(Level.WARNING, "Database status check failed.", exception);
+                message = "§cDatabase disconnected. Check the server log.";
+            }
+            send(sender, true, message);
+        });
     }
 
     private void validateDatabaseConnection() throws Exception {
@@ -199,7 +253,7 @@ public final class VaultSync extends JavaPlugin implements Listener, org.bukkit.
         for (Player player : Bukkit.getOnlinePlayers()) save(player, false, null);
     }
 
-    private void save(Player player, boolean notify, org.bukkit.command.CommandSender sender) {
+    private void save(Player player, boolean notify, CommandSender sender) {
         UUID uuid = player.getUniqueId();
         String name = player.getName();
         byte[] payload;
@@ -207,10 +261,25 @@ public final class VaultSync extends JavaPlugin implements Listener, org.bukkit.
             payload = encode(player);
         } catch (Exception exception) {
             getLogger().log(Level.SEVERE, "Could not serialize a snapshot for " + name + " (" + uuid + "). Existing database data was not changed.", exception);
-            send(sender, notify, "§cVaultSync could not serialize " + name + "'s data.");
+            reportSaveResult(sender, notify, name, SaveResult.SERIALIZE_FAILED);
             return;
         }
         enqueue(() -> {
+            SaveResult result = writeSnapshot(uuid, name, payload);
+            reportSaveResult(sender, notify, name, result);
+        });
+    }
+
+    private void reportSaveResult(CommandSender sender, boolean notify, String name, SaveResult result) {
+        switch (result) {
+            case SUCCESS -> send(sender, notify, "§aVaultSync saved " + name + "'s data.");
+            case SERIALIZE_FAILED -> send(sender, notify, "§cVaultSync could not serialize " + name + "'s data. Existing database data was not changed.");
+            case DATABASE_FAILED -> send(sender, notify, "§cVaultSync failed to save " + name + "'s data. Existing database data was not changed. Check the server log.");
+        }
+    }
+
+    private SaveResult writeSnapshot(UUID uuid, String name, byte[] payload) {
+        return SaveResult.writeIfSerialized(payload, () -> {
             try (Connection connection = pool.getConnection(); PreparedStatement statement = connection.prepareStatement(
                     "INSERT INTO vaultsync_player_data (uuid, player_name, payload, schema_version) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE player_name=VALUES(player_name), payload=VALUES(payload), schema_version=VALUES(schema_version), saved_at=CURRENT_TIMESTAMP(3)")) {
                 statement.setString(1, uuid.toString());
@@ -218,15 +287,15 @@ public final class VaultSync extends JavaPlugin implements Listener, org.bukkit.
                 statement.setBytes(3, payload);
                 statement.setInt(4, SNAPSHOT_VERSION);
                 statement.executeUpdate();
-                send(sender, notify, "§aVaultSync saved " + name + "'s data.");
+                return true;
             } catch (Exception exception) {
-                getLogger().log(Level.SEVERE, "Database save failed for " + name + " (" + uuid + ").", exception);
-                send(sender, notify, "§cVaultSync failed to save " + name + "'s data. Check the server log.");
+                getLogger().log(Level.SEVERE, "Database save failed for " + name + " (" + uuid + "). Existing database data was not changed.", exception);
+                return false;
             }
         });
     }
 
-    private void load(Player player, boolean notify, org.bukkit.command.CommandSender sender) {
+    private void load(Player player, boolean notify, CommandSender sender) {
         UUID uuid = player.getUniqueId();
         String name = player.getName();
         enqueue(() -> {
@@ -305,11 +374,11 @@ public final class VaultSync extends JavaPlugin implements Listener, org.bukkit.
         try {
             workers.execute(task);
         } catch (RuntimeException exception) {
-            getLogger().log(Level.SEVERE, "Could not queue a database operation.", exception);
+            getLogger().log(Level.SEVERE, "Could not enqueue a database operation.", exception);
         }
     }
 
-    private void send(org.bukkit.command.CommandSender sender, boolean notify, String message) {
+    private void send(CommandSender sender, boolean notify, String message) {
         if (!notify || sender == null) return;
         if (Bukkit.isPrimaryThread()) sender.sendMessage(message);
         else if (!shuttingDown) Bukkit.getScheduler().runTask(this, () -> sender.sendMessage(message));
@@ -589,71 +658,7 @@ public final class VaultSync extends JavaPlugin implements Listener, org.bukkit.
         player.updateInventory();
     }
 
-    @Override
-    public boolean onCommand(org.bukkit.command.CommandSender sender, org.bukkit.command.Command command, String label, String[] args) {
-        if (args.length == 0) {
-            sender.sendMessage("§6VaultSync §7| /vaultsync <status|save|restore|info|reload>");
-            return true;
-        }
-        String action = args[0].toLowerCase();
-        if (!sender.hasPermission("vaultsync.admin") && !sender.hasPermission("vaultsync." + action)) {
-            sender.sendMessage("§cYou do not have permission to do that.");
-            return true;
-        }
-        if (action.equals("status")) {
-            int onlineCount = Bukkit.getOnlinePlayers().size();
-            sender.sendMessage("§7Checking database connection...");
-            enqueue(() -> {
-                String message;
-                try (Connection connection = pool.getConnection(); Statement statement = connection.createStatement(); ResultSet result = statement.executeQuery("SELECT 1")) {
-                    message = result.next() ? "§6VaultSync §7| Database: §aConnected §7| Online: §f" + onlineCount : "§cDatabase check failed.";
-                } catch (Exception exception) {
-                    getLogger().log(Level.WARNING, "Database status check failed.", exception);
-                    message = "§cDatabase disconnected. Check the server log.";
-                }
-                send(sender, true, message);
-            });
-            return true;
-        }
-        if (action.equals("reload")) {
-            reloadConfig();
-            sender.sendMessage("§aVaultSync configuration reloaded. Database connection settings require a restart.");
-            return true;
-        }
-        if (args.length < 2) {
-            sender.sendMessage("§cUsage: /vaultsync " + action + " <player>");
-            return true;
-        }
-        String targetName = args[1];
-        if (action.equals("save") || action.equals("restore")) {
-            Player target = Bukkit.getPlayerExact(targetName);
-            if (target != null) {
-                if (action.equals("save")) {
-                    save(target, true, sender);
-                    sender.sendMessage("§7VaultSync queued a snapshot for " + target.getName() + ".");
-                } else {
-                    sender.sendMessage("§eRestoring replaces the target's current vanilla player state.");
-                    joiningPlayers.add(target.getUniqueId());
-                    load(target, true, sender);
-                }
-                return true;
-            }
-            if (action.equals("save")) {
-                sender.sendMessage("§cSaving requires the player to be online so their current state can be captured.");
-                return true;
-            }
-            enqueue(() -> requestOfflineRestore(targetName, sender));
-            return true;
-        }
-        if (action.equals("info")) {
-            enqueue(() -> queryInfo(targetName, sender));
-            return true;
-        }
-        sender.sendMessage("§cUnknown command. Use /vaultsync <status|save|restore|info|reload>.");
-        return true;
-    }
-
-    private void requestOfflineRestore(String name, org.bukkit.command.CommandSender sender) {
+    private void requestOfflineRestore(String name, CommandSender sender) {
         try (Connection connection = pool.getConnection(); PreparedStatement statement = connection.prepareStatement(
                 "SELECT uuid FROM vaultsync_player_data WHERE LOWER(player_name)=LOWER(?) ORDER BY saved_at DESC LIMIT 1")) {
             statement.setString(1, name);
@@ -677,7 +682,7 @@ public final class VaultSync extends JavaPlugin implements Listener, org.bukkit.
         }
     }
 
-    private void queryInfo(String name, org.bukkit.command.CommandSender sender) {
+    private void queryInfo(String name, CommandSender sender) {
         try (Connection connection = pool.getConnection(); PreparedStatement statement = connection.prepareStatement(
                 "SELECT uuid, player_name, saved_at, schema_version, OCTET_LENGTH(payload) FROM vaultsync_player_data WHERE LOWER(player_name)=LOWER(?) ORDER BY saved_at DESC LIMIT 1")) {
             statement.setString(1, name);

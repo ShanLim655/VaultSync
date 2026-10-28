@@ -1,4 +1,4 @@
-# VaultSync 1.0.0 configuration
+# VaultSync 2.0.0 configuration
 # VaultSync will only finish enabling after it can connect to this database,
 # validate the connection, and create/update its required tables.
 # If the database is unavailable or these settings are incorrect, VaultSync
@@ -45,6 +45,10 @@ database:
 
     # Maximum lifetime of a pooled connection in milliseconds.
     max-lifetime-ms: 1800000
+
+# Player UUIDs allowed to open /vaultsync gui and use its actions.
+# Access also requires vaultsync.gui or vaultsync.admin. An empty list denies GUI access.
+allowmanager: []
 
 saving:
   # How often online player data is saved, in seconds. Minimum effective interval is 30 seconds.
