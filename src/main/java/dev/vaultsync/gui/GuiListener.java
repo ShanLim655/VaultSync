@@ -35,6 +35,9 @@ public final class GuiListener implements Listener {
         event.setCancelled(true);
         event.setResult(org.bukkit.event.Event.Result.DENY);
 
+        if (event instanceof InventoryCreativeEvent) {
+            return;
+        }
         if (!(event.getWhoClicked() instanceof Player player)) {
             return;
         }
@@ -53,7 +56,7 @@ public final class GuiListener implements Listener {
         }
 
         switch (guiHolder.view()) {
-            case PLAYERS -> handlePlayersClick(player, event.getSlot());
+            case PLAYERS -> handlePlayersClick(player, guiHolder, event.getSlot());
             case ACTIONS -> handleActionsClick(player, guiHolder, event.getSlot());
             case CONFIRM_RESTORE -> handleConfirmClick(player, guiHolder, event.getSlot());
         }
@@ -77,12 +80,20 @@ public final class GuiListener implements Listener {
         }
     }
 
-    private void handlePlayersClick(Player player, int slot) {
-        if (slot == 49) {
+    private void handlePlayersClick(Player player, VaultSyncGuiHolder holder, int slot) {
+        if (slot == 45) {
+            gui.openPlayers(player, holder.page() - 1);
+            return;
+        }
+        if (slot == 50) {
             player.closeInventory();
             return;
         }
-        if (slot < 0 || slot >= 45) {
+        if (slot == 53) {
+            gui.openPlayers(player, holder.page() + 1);
+            return;
+        }
+        if (slot < 0 || slot >= ManagerGui.PAGE_SIZE) {
             return;
         }
         Inventory top = player.getOpenInventory().getTopInventory();
@@ -97,7 +108,7 @@ public final class GuiListener implements Listener {
         Player target = Bukkit.getPlayer(targetId);
         if (target == null || !target.isOnline()) {
             player.sendMessage("§cThat player is no longer online.");
-            gui.openPlayers(player);
+            gui.openPlayers(player, holder.page());
             return;
         }
         gui.openActions(player, target);
@@ -136,7 +147,7 @@ public final class GuiListener implements Listener {
             }
             return;
         }
-        if (slot != 11) {
+        if (!isRestoreConfirmationClick(holder.view(), slot)) {
             return;
         }
         Player target = resolveTarget(holder);
@@ -146,6 +157,10 @@ public final class GuiListener implements Listener {
             return;
         }
         plugin.restorePlayer(target, player);
+    }
+
+    static boolean isRestoreConfirmationClick(GuiView view, int slot) {
+        return view == GuiView.CONFIRM_RESTORE && slot == 11;
     }
 
     private static Player resolveTarget(VaultSyncGuiHolder holder) {

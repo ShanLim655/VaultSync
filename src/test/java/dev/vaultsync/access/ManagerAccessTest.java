@@ -43,4 +43,15 @@ class ManagerAccessTest {
         List<UUID> parsed = ManagerAccess.parseAllowmanager(List.of(first.toString(), "nope", second.toString(), ""));
         assertEquals(List.of(first, second), parsed);
     }
+
+    @Test
+    void guiAccessRequiresPermissionAndAllowlistedUuid() {
+        UUID uuid = UUID.fromString("11111111-2222-3333-4444-555555555555");
+        List<String> allowmanager = List.of(uuid.toString());
+
+        assertTrue(ManagerAccess.isAuthorized(uuid, false, true, allowmanager));
+        assertTrue(ManagerAccess.isAuthorized(uuid, true, false, allowmanager));
+        assertFalse(ManagerAccess.isAuthorized(uuid, false, false, allowmanager));
+        assertFalse(ManagerAccess.isAuthorized(uuid, false, true, List.of(UUID.randomUUID().toString())));
+    }
 }

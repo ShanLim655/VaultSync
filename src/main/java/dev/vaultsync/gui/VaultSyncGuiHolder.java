@@ -9,12 +9,18 @@ public final class VaultSyncGuiHolder implements InventoryHolder {
     private final GuiView view;
     private final UUID targetUuid;
     private final String targetName;
+    private final int page;
     private Inventory inventory;
 
     public VaultSyncGuiHolder(GuiView view, UUID targetUuid, String targetName) {
+        this(view, targetUuid, targetName, 0);
+    }
+
+    public VaultSyncGuiHolder(GuiView view, UUID targetUuid, String targetName, int page) {
         this.view = view;
         this.targetUuid = targetUuid;
         this.targetName = targetName;
+        this.page = Math.max(0, page);
     }
 
     public GuiView view() {
@@ -27,6 +33,10 @@ public final class VaultSyncGuiHolder implements InventoryHolder {
 
     public String targetName() {
         return targetName;
+    }
+
+    public int page() {
+        return page;
     }
 
     void setInventory(Inventory inventory) {

@@ -1,5 +1,7 @@
 package dev.vaultsync.data;
 
+import java.util.function.BooleanSupplier;
+
 public enum SaveResult {
     SERIALIZE_FAILED,
     DATABASE_FAILED,
@@ -15,5 +17,10 @@ public enum SaveResult {
 
     public static SaveResult fromDatabaseWrite(boolean succeeded) {
         return succeeded ? SUCCESS : DATABASE_FAILED;
+    }
+
+    public static SaveResult writeIfSerialized(byte[] payload, BooleanSupplier databaseWrite) {
+        if (payload == null) return SERIALIZE_FAILED;
+        return fromDatabaseWrite(databaseWrite.getAsBoolean());
     }
 }

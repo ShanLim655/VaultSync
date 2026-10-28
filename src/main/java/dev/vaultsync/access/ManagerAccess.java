@@ -17,13 +17,15 @@ public final class ManagerAccess {
     }
 
     public boolean canUseGui(Player player) {
-        if (player == null) {
-            return false;
-        }
-        if (!player.hasPermission("vaultsync.admin") && !player.hasPermission("vaultsync.gui")) {
-            return false;
-        }
-        return isAllowlisted(player.getUniqueId(), configSupplier.get().getStringList("allowmanager"));
+        return player != null && isAuthorized(
+                player.getUniqueId(),
+                player.hasPermission("vaultsync.admin"),
+                player.hasPermission("vaultsync.gui"),
+                configSupplier.get().getStringList("allowmanager"));
+    }
+
+    public static boolean isAuthorized(UUID uuid, boolean hasAdminPermission, boolean hasGuiPermission, List<String> entries) {
+        return (hasAdminPermission || hasGuiPermission) && isAllowlisted(uuid, entries);
     }
 
     public static boolean isAllowlisted(UUID uuid, List<String> entries) {

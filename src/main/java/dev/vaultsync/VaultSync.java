@@ -279,18 +279,20 @@ public final class VaultSync extends JavaPlugin implements Listener {
     }
 
     private SaveResult writeSnapshot(UUID uuid, String name, byte[] payload) {
-        try (Connection connection = pool.getConnection(); PreparedStatement statement = connection.prepareStatement(
-                "INSERT INTO vaultsync_player_data (uuid, player_name, payload, schema_version) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE player_name=VALUES(player_name), payload=VALUES(payload), schema_version=VALUES(schema_version), saved_at=CURRENT_TIMESTAMP(3)")) {
-            statement.setString(1, uuid.toString());
-            statement.setString(2, name);
-            statement.setBytes(3, payload);
-            statement.setInt(4, SNAPSHOT_VERSION);
-            statement.executeUpdate();
-            return SaveResult.fromDatabaseWrite(true);
-        } catch (Exception exception) {
-            getLogger().log(Level.SEVERE, "Database save failed for " + name + " (" + uuid + "). Existing database data was not changed.", exception);
-            return SaveResult.fromDatabaseWrite(false);
-        }
+        return SaveResult.writeIfSerialized(payload, () -> {
+            try (Connection connection = pool.getConnection(); PreparedStatement statement = connection.prepareStatement(
+                    "INSERT INTO vaultsync_player_data (uuid, player_name, payload, schema_version) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE player_name=VALUES(player_name), payload=VALUES(payload), schema_version=VALUES(schema_version), saved_at=CURRENT_TIMESTAMP(3)")) {
+                statement.setString(1, uuid.toString());
+                statement.setString(2, name);
+                statement.setBytes(3, payload);
+                statement.setInt(4, SNAPSHOT_VERSION);
+                statement.executeUpdate();
+                return true;
+            } catch (Exception exception) {
+                getLogger().log(Level.SEVERE, "Database save failed for " + name + " (" + uuid + "). Existing database data was not changed.", exception);
+                return false;
+            }
+        });
     }
 
     private void load(Player player, boolean notify, CommandSender sender) {

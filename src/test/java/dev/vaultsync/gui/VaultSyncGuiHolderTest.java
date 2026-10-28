@@ -5,8 +5,10 @@ import org.junit.jupiter.api.Test;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class VaultSyncGuiHolderTest {
     @Test
@@ -33,5 +35,18 @@ class VaultSyncGuiHolderTest {
         VaultSyncGuiHolder confirm = new VaultSyncGuiHolder(GuiView.CONFIRM_RESTORE, target, "Alex");
         assertSame(GuiView.ACTIONS, actions.view());
         assertSame(GuiView.CONFIRM_RESTORE, confirm.view());
+    }
+
+    @Test
+    void restoreRequiresConfirmationViewAndConfirmSlot() {
+        assertTrue(GuiListener.isRestoreConfirmationClick(GuiView.CONFIRM_RESTORE, 11));
+        assertFalse(GuiListener.isRestoreConfirmationClick(GuiView.ACTIONS, 11));
+        assertFalse(GuiListener.isRestoreConfirmationClick(GuiView.CONFIRM_RESTORE, 15));
+    }
+
+    @Test
+    void playerHolderRetainsPaginationPage() {
+        VaultSyncGuiHolder holder = new VaultSyncGuiHolder(GuiView.PLAYERS, null, null, 2);
+        assertEquals(2, holder.page());
     }
 }

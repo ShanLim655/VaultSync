@@ -16,24 +16,45 @@ public final class ManagerGui {
     public static final String TITLE_PLAYERS = "VaultSync Players";
     public static final String TITLE_ACTIONS = "VaultSync Actions";
     public static final String TITLE_CONFIRM = "VaultSync Confirm Restore";
+    public static final int PAGE_SIZE = 45;
 
     public void openPlayers(Player viewer) {
-        VaultSyncGuiHolder holder = new VaultSyncGuiHolder(GuiView.PLAYERS, null, null);
+        openPlayers(viewer, 0);
+    }
+
+    public void openPlayers(Player viewer, int requestedPage) {
+        List<Player> online = new ArrayList<>(Bukkit.getOnlinePlayers());
+        online.sort(Comparator.comparing(Player::getName, String.CASE_INSENSITIVE_ORDER));
+
+        int pageCount = pageCount(online.size());
+        int page = clampPage(requestedPage, online.size());
+        VaultSyncGuiHolder holder = new VaultSyncGuiHolder(GuiView.PLAYERS, null, null, page);
         Inventory inventory = Bukkit.createInventory(holder, 54, TITLE_PLAYERS);
         holder.setInventory(inventory);
 
-        List<Player> online = new ArrayList<>(Bukkit.getOnlinePlayers());
-        online.sort(Comparator.comparing(player -> player.getName().toLowerCase()));
-        int slot = 0;
-        for (Player target : online) {
-            if (slot >= 45) {
-                break;
-            }
-            inventory.setItem(slot++, playerHead(target));
+        int start = page * PAGE_SIZE;
+        int end = Math.min(start + PAGE_SIZE, online.size());
+        for (int index = start; index < end; index++) {
+            inventory.setItem(index - start, playerHead(online.get(index)));
         }
 
-        inventory.setItem(49, namedItem(Material.BARRIER, "§cClose"));
+        if (page > 0) {
+            inventory.setItem(45, namedItem(Material.ARROW, "§ePrevious Page"));
+        }
+        inventory.setItem(49, namedItem(Material.PAPER, "§fPage " + (page + 1) + " / " + pageCount));
+        inventory.setItem(50, namedItem(Material.BARRIER, "§cClose"));
+        if (page + 1 < pageCount) {
+            inventory.setItem(53, namedItem(Material.ARROW, "§eNext Page"));
+        }
         viewer.openInventory(inventory);
+    }
+
+    static int pageCount(int playerCount) {
+        return Math.max(1, (Math.max(0, playerCount) + PAGE_SIZE - 1) / PAGE_SIZE);
+    }
+
+    static int clampPage(int requestedPage, int playerCount) {
+        return Math.max(0, Math.min(requestedPage, pageCount(playerCount) - 1));
     }
 
     public void openActions(Player viewer, Player target) {
